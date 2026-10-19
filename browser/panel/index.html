@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArachNet Control</title>
+<style>
+  @font-face { font-family: 'Orbitron'; font-weight: 900; src: url(/fonts/orbitron/files/orbitron-latin-900-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Orbitron'; font-weight: 700; src: url(/fonts/orbitron/files/orbitron-latin-700-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Share Tech Mono'; src: url(/fonts/share-tech-mono/files/share-tech-mono-latin-400-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Rajdhani'; font-weight: 600; src: url(/fonts/rajdhani/files/rajdhani-latin-600-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Rajdhani'; font-weight: 700; src: url(/fonts/rajdhani/files/rajdhani-latin-700-normal.woff2) format('woff2'); }
+  :root { --bg: #04060d; --panel: rgba(8,14,28,.82); --line: rgba(0,240,255,.22); --cyan: #00f0ff; --mag: #ff2bd6; --red: #ff1e3c; --amber: #ffb000; --green: #39ff88; --ink: #e8f6ff; --dim: #8fb3c8; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font: 600 16px/1.45 Rajdhani, "Segoe UI", sans-serif; overflow-x: hidden; }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background:
+    linear-gradient(transparent 0 calc(100% - 1px), rgba(0,240,255,.06) 0) 0 0 / 100% 32px,
+    linear-gradient(90deg, transparent 0 calc(100% - 1px), rgba(0,240,255,.06) 0) 0 0 / 32px 100%,
+    radial-gradient(ellipse at 20% 0%, rgba(0,240,255,.12), transparent 50%), radial-gradient(ellipse at 90% 100%, rgba(255,43,214,.12), transparent 55%); }
+  body::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.18) 2px 3px); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 40px; position: relative; z-index: 1; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  h1 { font: 900 clamp(28px, 5vw, 44px)/1 Orbitron, sans-serif; margin: 0; color: var(--cyan); text-shadow: 0 0 18px rgba(0,240,255,.6); letter-spacing: .02em; }
+  .glyph { font: 400 28px "Share Tech Mono", monospace; color: var(--mag); }
+  .sub { color: var(--dim); letter-spacing: .12em; text-transform: uppercase; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; margin-top: 24px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 18px; position: relative; }
+  .card::before, .card::after { content: ""; position: absolute; width: 14px; height: 14px; border: 2px solid var(--cyan); }
+  .card::before { left: -2px; top: -2px; border-right: 0; border-bottom: 0; }
+  .card::after { right: -2px; bottom: -2px; border-left: 0; border-top: 0; }
+  .label { font: 700 12px Rajdhani, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--cyan); margin-bottom: 8px; display: block; }
+  .target { display: flex; gap: 10px; }
+  input[type=text] { flex: 1; min-width: 0; background: #02040a; border: 1px solid var(--line); color: var(--ink); font: 400 18px "Share Tech Mono", monospace; padding: 12px 14px; border-radius: 3px; outline: none; }
+  input[type=text]:focus { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 18px rgba(0,240,255,.25); }
+  button { font: 900 14px Orbitron, sans-serif; letter-spacing: .14em; border-radius: 3px; cursor: pointer; border: 1px solid var(--cyan); background: transparent; color: var(--cyan); padding: 12px 16px; }
+  button:hover { background: rgba(0,240,255,.12); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; min-height: 30px; }
+  .chip { font: 400 13px "Share Tech Mono", monospace; padding: 4px 9px; border: 1px solid var(--line); border-radius: 2px; color: var(--dim); }
+  .chip.ok { color: var(--green); border-color: rgba(57,255,136,.5); }
+  .chip.no { color: var(--red); border-color: rgba(255,30,60,.6); }
+  .chip.sig { color: var(--mag); border-color: rgba(255,43,214,.5); }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; margin-top: 18px; }
+  @media (max-width: 560px) { .opts { grid-template-columns: 1fr; } }
+  .range { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; accent-color: var(--mag); }
+  .val { font: 400 18px "Share Tech Mono", monospace; color: var(--ink); min-width: 56px; text-align: right; }
+  .toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; color: var(--ink); }
+  .toggle input { appearance: none; width: 42px; height: 22px; border: 1px solid var(--line); border-radius: 11px; position: relative; background: #02040a; cursor: pointer; margin: 0; flex: none; }
+  .toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--dim); transition: .15s; }
+  .toggle input:checked { border-color: var(--cyan); box-shadow: 0 0 10px rgba(0,240,255,.35); }
+  .toggle input:checked::after { left: 22px; background: var(--cyan); }
+  .hint { color: var(--dim); font-size: 13px; font-weight: 600; }
+  details { margin-top: 14px; color: var(--dim); }
+  summary { cursor: pointer; font: 700 12px Rajdhani, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+  details input[type=text] { width: 100%; font-size: 14px; margin-top: 6px; }
+  .fire { margin-top: 22px; display: flex; gap: 12px; }
+  #fire { flex: 1; font-size: 22px; padding: 18px; border-color: var(--mag); color: #fff; background: linear-gradient(90deg, rgba(255,43,214,.35), rgba(0,240,255,.25)); text-shadow: 0 0 12px rgba(255,43,214,.9); box-shadow: 0 0 24px rgba(255,43,214,.35), inset 0 0 18px rgba(255,43,214,.2); }
+  #fire:hover:not(:disabled) { box-shadow: 0 0 36px rgba(255,43,214,.6), inset 0 0 24px rgba(255,43,214,.35); }
+  #stop { border-color: var(--red); color: var(--red); min-width: 120px; }
+  #stop:hover:not(:disabled) { background: rgba(255,30,60,.15); }
+  .status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .stat { border: 1px solid var(--line); padding: 10px 12px; border-radius: 3px; min-width: 0; }
+  .stat .k { font: 700 11px Rajdhani, sans-serif; letter-spacing: .16em; color: var(--dim); text-transform: uppercase; }
+  .stat .v { font: 400 22px "Share Tech Mono", monospace; color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #state.v.live { color: var(--mag); text-shadow: 0 0 10px rgba(255,43,214,.7); }
+  #state.v.mapping { color: var(--amber); }
+  .now { margin-top: 12px; font: 400 14px "Share Tech Mono", monospace; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 20px; }
+  .bar { height: 4px; background: rgba(0,240,255,.12); margin-top: 10px; border-radius: 2px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--mag)); transition: width .4s; }
+  #log { margin-top: 14px; height: 340px; overflow: auto; background: #02040a; border: 1px solid var(--line); border-radius: 3px; padding: 10px 12px; font: 400 13px/1.55 "Share Tech Mono", monospace; color: #9fdcff; }
+  #log .warn { color: var(--amber); } #log .map { color: var(--dim); } #log .sys { color: var(--mag); }
+  #report { display: none; margin-top: 12px; color: var(--green); font: 400 14px "Share Tech Mono", monospace; }
+  .rules { margin-top: 18px; color: var(--dim); font-size: 13px; font-weight: 600; line-height: 1.6; }
+  .rules b { color: var(--ink); }
+  .err { color: var(--red); font: 400 14px "Share Tech Mono", monospace; margin-top: 10px; min-height: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ARACHNET</h1><span class="glyph">/[•]\</span>
+    <span class="sub">Control  ·  Spider on live DOM</span>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <label class="label" for="url">Target</label>
+      <div class="target">
+        <input id="url" type="text" placeholder="https://modelcontextprotocol.io" autocomplete="off" spellcheck="false">
+        <button id="check" type="button">SCAN</button>
+      </div>
+      <div class="checks" id="checks"><span class="chip">robots.txt wird beim Abfeuern geprüft</span></div>
+
+      <div class="opts">
+        <div><span class="label">Seiten</span><div class="range"><input id="pages" type="range" min="3" max="60" value="15"><span class="val" id="pagesV">15</span></div></div>
+        <div><span class="label">Verweilzeit pro Seite</span><div class="range"><input id="dwell" type="range" min="15" max="90" value="25"><span class="val" id="dwellV">25 s</span></div></div>
+        <label class="toggle"><input id="dark" type="checkbox" checked> Dark Mode der Seite anfordern</label>
+        <label class="toggle"><input id="audio" type="checkbox" checked> Musik (audio-reaktiv)</label>
+        <label class="toggle"><input id="map" type="checkbox"> Seite vorher kartieren + Report</label>
+        <div><span class="label">Kartierung</span><div class="range"><input id="mapPages" type="range" min="50" max="1000" step="50" value="300"><span class="val" id="mapPagesV">300</span></div></div>
+      </div>
+      <details>
+        <summary>Erweitert</summary>
+        <div class="hint" style="margin-top:8px">Eigene Musikdatei (Pfad, mp3/ogg/wav):</div>
+        <input id="track" type="text" placeholder="D:\Musik\track.mp3  (leer = Eight-Legged Clock)" spellcheck="false">
+        <div class="hint" style="margin-top:10px">CDN-Hosts für Bilder/Fonts der Seite (kommagetrennt, optional):</div>
+        <input id="hosts" type="text" placeholder="mintcdn.com, images.example-cdn.net" spellcheck="false">
+      </details>
+
+      <div class="fire">
+        <button id="fire" type="button">FIRE</button>
+        <button id="stop" type="button" disabled>STOP</button>
+      </div>
+      <div class="err" id="err" role="alert"></div>
+      <div class="rules"><b>Höflich per Design:</b> robots.txt wird respektiert, höchstens eine Seite pro Verweilzeit, Drittanbieter (Tracking) blockiert, Cookie-Dialoge werden ohne Zustimmung geschlossen, bei 429/503 zieht sich die Spinne zurück. Die Seite selbst wird nie verändert, alles läuft in einem Overlay.</div>
+    </section>
+
+    <section class="card">
+      <span class="label">Mission</span>
+      <div class="status">
+        <div class="stat"><div class="k">Status</div><div class="v" id="state">IDLE</div></div>
+        <div class="stat"><div class="k">Seiten</div><div class="v" id="pagesDone">—</div></div>
+        <div class="stat"><div class="k">TTFB</div><div class="v" id="ttfb">—</div></div>
+        <div class="stat"><div class="k">Host</div><div class="v" id="host">—</div></div>
+        <div class="stat"><div class="k">Nodes</div><div class="v" id="nodes">—</div></div>
+        <div class="stat"><div class="k">Links</div><div class="v" id="links">—</div></div>
+      </div>
+      <div class="bar"><i id="prog"></i></div>
+      <div class="now" id="now"></div>
+      <a id="report" href="#" target="_blank" rel="noopener">▶ Audit-Report öffnen</a>
+      <div id="log" aria-live="polite"></div>
+    </section>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const logEl = $('log');
+const line = (text, cls = '') => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; logEl.appendChild(d); while (logEl.childElementCount > 500) logEl.firstChild.remove(); logEl.scrollTop = logEl.scrollHeight; };
+for (const [id, fmt] of [['pages', v => v], ['dwell', v => v + ' s'], ['mapPages', v => v]]) { const el = $(id); const out = () => ($(id + 'V').textContent = fmt(el.value)); el.addEventListener('input', out); out(); }
+try { const last = localStorage.getItem('arachnet-url'); if (last) $('url').value = last; } catch {}
+
+async function check() {
+  const url = $('url').value.trim(); if (!url) return;
+  $('checks').innerHTML = '<span class="chip">scanning robots.txt …</span>';
+  const r = await fetch('/api/check?url=' + encodeURIComponent(url)).then(r => r.json()).catch(() => ({ ok: false, error: 'Panel nicht erreichbar' }));
+  const c = $('checks'); c.innerHTML = '';
+  const chip = (t, cls) => { const s = document.createElement('span'); s.className = 'chip ' + (cls || ''); s.textContent = t; c.appendChild(s); };
+  if (!r.ok) { chip(r.error, 'no'); return r; }
+  chip(r.host);
+  chip('robots.txt ' + (r.robots.status ?? 'nicht erreichbar'), r.robots.status === 200 || r.robots.status === 404 ? 'ok' : '');
+  chip(r.allowed ? 'Crawlen erlaubt' : 'robots.txt verbietet das', r.allowed ? 'ok' : 'no');
+  if (r.robots.crawlDelay) chip('Crawl-delay ' + r.robots.crawlDelay + ' s');
+  for (const s of r.robots.contentSignals || []) chip('Content-Signal: ' + s, 'sig');
+  if (r.robots.sitemaps?.length) chip(r.robots.sitemaps.length + ' Sitemap(s)');
+  return r;
+}
+$('check').addEventListener('click', check);
+$('url').addEventListener('keydown', e => { if (e.key === 'Enter') check(); });
+
+$('fire').addEventListener('click', async () => {
+  $('err').textContent = '';
+  const url = $('url').value.trim();
+  if (!url) { $('err').textContent = 'Erst ein Ziel eingeben.'; return; }
+  try { localStorage.setItem('arachnet-url', url); } catch {}
+  $('fire').disabled = true;
+  const r = await fetch('/api/fire', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+    url, pages: +$('pages').value, dwell: +$('dwell').value, dark: $('dark').checked, audio: $('audio').checked,
+    map: $('map').checked, mapPages: +$('mapPages').value, track: $('track').value.trim(), allowHosts: $('hosts').value.trim() }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok) { $('err').textContent = r.error || 'Start fehlgeschlagen'; $('fire').disabled = false; }
+});
+$('stop').addEventListener('click', () => fetch('/api/stop', { method: 'POST' }));
+
+const setState = (s, host) => {
+  const el = $('state'); el.textContent = s.toUpperCase(); el.className = 'v ' + s;
+  const busy = s !== 'idle';
+  $('fire').disabled = busy; $('stop').disabled = !busy;
+  if (host) $('host').textContent = host;
+};
+const es = new EventSource('/api/events');
+es.onmessage = m => {
+  const ev = JSON.parse(m.data);
+  if (ev.type === 'log') line(ev.text, ev.level === 'warn' ? 'warn' : /^(TARGET|MAPPING|REPORT|LIVE|MISSION|STOP)/.test(ev.text) ? 'sys' : '');
+  else if (ev.type === 'state') setState(ev.state, ev.host);
+  else if (ev.type === 'map') { line(`map ${String(ev.n).padStart(4)}  ${ev.status}  ${ev.ms}ms  ${ev.path}`, 'map'); $('pagesDone').textContent = ev.n; $('now').textContent = 'MAPPING  ' + ev.path; $('prog').style.width = Math.min(100, ev.n / (ev.n + ev.queue) * 100) + '%'; }
+  else if (ev.type === 'status') {
+    if (ev.pages != null) { $('pagesDone').textContent = `${ev.pages}/${ev.of ?? '?'}`; $('prog').style.width = (ev.of ? ev.pages / ev.of * 100 : 0) + '%'; }
+    if (ev.ttfb != null) $('ttfb').textContent = ev.ttfb + ' ms';
+    if (ev.nodes != null) $('nodes').textContent = ev.nodes;
+    if (ev.links != null) $('links').textContent = ev.links;
+    if (ev.url) $('now').textContent = '▶ ' + ev.url;
+    if (ev.state === 'refused') line('robots.txt verbietet das Ziel — abgebrochen.', 'warn');
+    if (ev.state === 'pushback') line('Server wehrt sich (429/503) — Rückzug.', 'warn');
+  }
+  else if (ev.type === 'report') { const a = $('report'); a.href = ev.href; a.style.display = 'block'; }
+};
+es.onerror = () => setState('offline');
+</script>
+</body>
+</html>

@@ -22,9 +22,9 @@ await Promise.all([
 
 const graph = await (await fetch(B + 'build/web-graph.json')).json();
 let audio;
-if (cfg.mode === 'live' && cfg.track === 'NO SIGNAL') audio = new LiveAudio(new Audio());
+if (cfg.mode === 'live' && !cfg.trackUrl) audio = new LiveAudio(new Audio());
 else if (cfg.mode === 'live') {
-  const el = new Audio(B + 'build/track.ogg');      // compressed: a 90 MB WAV through request interception crashes the tab el.crossOrigin = 'anonymous'; el.loop = true;
+  const el = new Audio(cfg.trackUrl);               // compressed (live.mjs turns big WAVs into Opus): a 90 MB file through request interception crashes the tab el.crossOrigin = 'anonymous'; el.loop = true;
   audio = new LiveAudio(el); window.__arachAudioEl = el;
   el.addEventListener('loadedmetadata', () => { el.currentTime = (cfg.audioOffset || 0) % (el.duration || 1e9); }, { once: true });
   audio.start().then(() => el.play()).catch(() => {});

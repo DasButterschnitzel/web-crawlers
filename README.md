@@ -8,6 +8,22 @@
 
 ![ArachNet: the spider under its link graph](docs/arachnet-spider.jpg)
 
+### Fire it at a website (control panel)
+
+Double-click **`ArachNet.cmd`** (Windows; installs its dependencies on first run) or run
+`node browser/launch.mjs`. A local control panel opens at <http://127.0.0.1:7777>:
+
+- enter a target, **SCAN** shows its robots.txt verdict, crawl-delay, sitemaps and
+  `Content-Signal` (AI-use preferences) before anything happens;
+- choose pages, dwell time per page, dark mode, music (default track or your own file) and
+  optionally **map the site first** (polite crawl + audit report, linked in the panel);
+- **FIRE** opens a visible Chrome and the spider walks the live site; status, TTFB, nodes and
+  the log stream into the panel; **STOP** ends it cleanly after the current page.
+
+The panel listens on localhost only and runs one mission at a time. robots.txt is enforced
+(a disallowed target is refused, disallowed links are skipped), and the minimap is built live
+from what the spider has seen, so no prior crawl is needed.
+
 ### The spider on the real website
 
 The heart of the original — a spider walking on the words of a page — now walks a real

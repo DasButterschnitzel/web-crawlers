@@ -70,6 +70,7 @@ export async function create3D({ THREE, canvas, graph, W, H }) {
 
   const center = new THREE.Vector3();
   for (let i = 0; i < N; i++) center.add(P(i)); center.multiplyScalar(1 / Math.max(1, N));
+  let extent = 1; for (let i = 0; i < N; i++) extent = Math.max(extent, P(i).distanceTo(center));   // small live graphs get a closer minimap camera
   const ease = x => { x = Math.min(1, Math.max(0, x)); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
 
   function setRoute(k) {
@@ -127,9 +128,9 @@ export async function create3D({ THREE, canvas, graph, W, H }) {
     const sx = m.x / 1920 * W, sy = H - (m.y + m.h) / 1080 * H, sw = m.w / 1920 * W, sh = m.h / 1080 * H;
     renderer.setScissor(sx, sy, sw, sh); renderer.setViewport(sx, sy, sw, sh);
     bgMat.uniforms.uA.value = 0.7 * S.miniA; renderer.render(bgScene, bgCam);
-    const ang = t * 0.12, r = 125 - 30 * (S.final || 0);
+    const ang = t * 0.12, r = Math.min(125, Math.max(22, extent * 2.3)) * (1 - 0.25 * (S.final || 0));
     const focus = center.clone().lerp(curP, 0.55);
-    cam.position.set(focus.x + Math.cos(ang) * r, focus.y + 38, focus.z + Math.sin(ang) * r);
+    cam.position.set(focus.x + Math.cos(ang) * r, focus.y + r * 0.3, focus.z + Math.sin(ang) * r);
     cam.up.set(0, 1, 0); cam.lookAt(focus); cam.fov = 45; cam.aspect = sw / sh; cam.updateProjectionMatrix();
     pmat.uniforms.uScale.value = 0.75; pmat.uniforms.uDim.value = 0.4 * S.miniA; emat.opacity = 0.07 * S.miniA; rmat.opacity = S.miniA;
     ring.position.copy(curP); ring2.position.copy(curP); ring.lookAt(cam.position); ring2.lookAt(cam.position);

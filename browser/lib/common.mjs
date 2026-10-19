@@ -9,12 +9,13 @@ const TYPES = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'a
 
 export const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 
-export async function launch({ headless = true, w = 1920, h = 1080, gpu = true } = {}) {
+// viewport: null = use the real window (maximized) — for the live, visible browser
+export async function launch({ headless = true, w = 1920, h = 1080, gpu = true, viewport } = {}) {
   const args = ['--hide-scrollbars', '--force-color-profile=srgb', '--autoplay-policy=no-user-gesture-required',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'];
   if (gpu) args.push('--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=d3d11');
-  if (!headless) args.push(`--window-size=${w},${h + 140}`, '--app=about:blank');
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless, protocolTimeout: 600000, args, defaultViewport: { width: w, height: h, deviceScaleFactor: 1 } });
+  if (!headless) args.push(viewport === null ? '--start-maximized' : `--window-size=${w},${h + 140}`, '--app=about:blank');
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless, protocolTimeout: 600000, args, defaultViewport: viewport === null ? null : { width: w, height: h, deviceScaleFactor: 1 } });
   const ua = (await browser.userAgent()).replace('HeadlessChrome', 'Chrome') + ' ArachNet/1.0 (+https://github.com/DasButterschnitzel/web-crawlers)';
   return { browser, ua };
 }

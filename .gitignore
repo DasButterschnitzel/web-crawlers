@@ -24,3 +24,4 @@ video3d/build/
 video3d/out/
 report/out/
 browser/node_modules/
+video3d/build*/

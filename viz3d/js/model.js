@@ -7,6 +7,9 @@ import { ForceLayout3D, cityLayout, rng } from './layout.js';
 export const PALETTE = ['#00f0ff', '#ff2bd6', '#7c4dff', '#39ff88', '#ffb000', '#ff3355', '#2e7bff', '#c6ff00', '#ff6a00', '#00ffc8', '#ff77aa', '#9d7bff'];
 export const STATUS_COLOR = s => s >= 500 || !s ? '#ff1e3c' : s >= 400 ? '#ff3355' : s >= 300 ? '#ffb000' : '#00f0ff';
 
+// "Page title | Site name" / "Page title - Site name" -> "Page title"
+export const cleanTitle = t => { t = (t || '').trim(); const m = t.match(/^(.+?)\s+[|–—-]\s+[^|–—]+$/); return m && m[1].length > 2 ? m[1] : t; };
+
 const shortPath = url => { try { const u = new URL(url); return decodeURIComponent(u.pathname + u.search); } catch { return url; } };
 
 export class CrawlModel {
@@ -33,7 +36,7 @@ export class CrawlModel {
     const parent = parentCid != null && this.byCrawlId.has(parentCid) ? this.byCrawlId.get(parentCid) : (this.nodes.length ? 0 : -1);
     const n = {
       i: this.nodes.length, cid: cn.id, url: cn.url, path: shortPath(cn.url), section: sec.name, sec,
-      title: (page.title || cn.title || '').replace(/\s*\|\s*Stadt Dreieich\s*$/i, '').trim(),
+      title: cleanTitle(page.title || cn.title || ''),
       status: page.status ?? cn.status, ttfb: page.ttfb ?? cn.ttfb ?? 0, ms: page.ms ?? cn.ms ?? 0, bytes: page.bytes ?? cn.bytes ?? 0,
       ctype: page.ctype ?? cn.ctype, words: page.words ?? cn.wordCount ?? 0, dom: page.dom ?? cn.domNodes ?? 0,
       links: page.links ?? cn.linksInternal ?? 0, ext: page.ext ?? cn.linksExternal ?? 0, imgs: page.imgs ?? cn.images ?? 0,
@@ -73,9 +76,10 @@ export class CrawlModel {
     const blockedEv = p => p.status === 503 || /error[_-]?path/.test(p.redirect || '');
     let b0 = pages.findIndex(blockedEv);
     if (b0 < 0 || timing.ice == null) b0 = N;
+    const iceT = b0 < N ? (timing.ice ?? timing.end) : timing.end;     // no firewall: the crawl gets the whole window
     const times = pages.map((p, i) => {
       const tv = i < b0
-        ? timing.start + ((timing.ice ?? timing.end) - timing.start) * warp(b0 > 1 ? i / (b0 - 1) : 0)
+        ? timing.start + (iceT - timing.start) * warp(b0 > 1 ? i / (b0 - 1) : 0)
         : timing.ice + (timing.end - timing.ice) * Math.pow((i - b0) / Math.max(1, N - 1 - b0), 0.8);
       return timing.grid0 + Math.round((tv - timing.grid0) / sixteenth) * sixteenth;
     });

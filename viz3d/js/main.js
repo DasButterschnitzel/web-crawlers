@@ -135,7 +135,7 @@ async function boot() {
     ['MEDIAN TTFB', (st.ttfb?.p50 ?? 0) + ' MS', '#e8f6ff'],
     ['SECTORS', String(model.sectionList.filter(s => s.count > 0).length), '#e8f6ff'],
     ['EXTERNAL DOMAINS', String(st.externalDomains || 0), '#e8f6ff'],
-    ['WAF BOUNCES', String(blkN), red],
+    blkN ? ['WAF BOUNCES', String(blkN), red] : ['COUNTERMEASURES', 'NONE', '#39ff88'],
   ];
 
   let simT = 0;

@@ -255,6 +255,7 @@ export class Crawler extends EventEmitter {
     const parsed = parseRobots(robotsText);
     this.robots.policy = robotsPolicy(parsed, this.o.ua);
     this.robots.sitemaps = parsed.sitemaps;
+    this.robots.contentSignals = parsed.contentSignals;
     this.robots.groups = parsed.groups.map(g => ({ agents: g.agents, rules: g.rules.map(r => (r.allow ? 'Allow: ' : 'Disallow: ') + r.path), delay: g.delay }));
     if (this.robots.policy.delay && this.o.respectRobotsTxt) this.gap = this.o.delay = Math.max(this.o.delay, this.robots.policy.delay * 1000);
     this.emitEv('robots', { status: this.robots.status, groups: this.robots.groups.length, sitemaps: parsed.sitemaps, crawlDelay: this.robots.policy.delay });
@@ -486,7 +487,7 @@ export class Crawler extends EventEmitter {
       generator: `ArachNet ${VERSION}`, seed: this.seed, host: this.host, ua: this.o.ua, startedAt: this.startedAt,
       options: { maxPages: this.o.maxPages, maxDepth: this.o.maxDepth, concurrency: this.o.concurrency, delay: this.o.delay,
         respectRobotsTxt: this.o.respectRobotsTxt, respectNofollow: this.o.respectNofollow, sitemap: this.o.sitemap, files: this.o.files },
-      robots: { status: this.robots.status, groups: this.robots.groups, sitemaps: this.robots.sitemaps, crawlDelay: this.robots.policy.delay },
+      robots: { status: this.robots.status, groups: this.robots.groups, sitemaps: this.robots.sitemaps, contentSignals: this.robots.contentSignals, crawlDelay: this.robots.policy.delay },
       sitemapFiles: this.sitemapFiles || [], stats: this.stats(),
       external: [...this.external].sort((a, b) => b[1] - a[1]),
       nodes: this.nodes, edges: this.edges,

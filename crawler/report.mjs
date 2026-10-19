@@ -169,8 +169,11 @@ const tb = [[0, 50], [50, 100], [100, 150], [150, 200], [200, 300], [300, 500], 
 const tbLab = ['<50', '50–100', '100–150', '150–200', '200–300', '300–500', '0,5–1 s', '1–2 s', '>2 s'];
 const tbData = tb.map(([a, b]) => ttfbHtml.filter(v => v >= a && v < b).length);
 // size histogram
-const sb = [[0, 100], [100, 150], [150, 175], [175, 200], [200, 250], [250, 300], [300, 1e9]];
-const sbLab = ['<100', '100–150', '150–175', '175–200', '200–250', '250–300', '>300'];
+// size bins that fit this site: 7 even steps between the 5th and 95th percentile
+const kbs = sizes.map(b => b / 1024), lo = Math.floor(quant(kbs, .05) / 10) * 10, hi = Math.ceil(quant(kbs, .95) / 10) * 10;
+const stepKb = Math.max(5, Math.ceil((hi - lo) / 5 / 5) * 5);
+const sb = [[0, lo]]; for (let a = lo; a < hi; a += stepKb) sb.push([a, a + stepKb]); sb.push([sb[sb.length - 1][1], 1e9]);
+const sbLab = sb.map(([a, b], i) => i === 0 ? `<${a}` : b >= 1e9 ? `>${a}` : `${a}–${b}`);
 const sbData = sb.map(([a, b]) => sizes.filter(v => v / 1024 >= a && v / 1024 < b).length);
 
 const statusRows = countBy(real, n => isBlocked(n) ? 'WAF-Bounce (303 → 503)' : String(n.status)).map(([k, c]) => [k, c,
@@ -179,9 +182,9 @@ const statusRows = countBy(real, n => isBlocked(n) ? 'WAF-Bounce (303 → 503)' 
 // ------------------------------------------------------------------ findings
 const findings = [];
 const F = (sev, title, text) => findings.push({ sev, title, text });
-F('kritisch', 'Web Application Firewall blockt Crawler nach ~4,5 Minuten',
+if (blocked.length) F('kritisch', 'Web Application Firewall blockt den Crawler',
   `Nach ${nf(reqsBeforeBlock)} Anfragen (≈ ${ratePre.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Anfragen/s) leitete der Server jede weitere Anfrage per <code>303</code> auf <code>/error_path/503.html</code> um (${nf(blocked.length)} Bounces). Das schützt die Seite, betrifft aber auch legitime Audit- und Monitoring-Tools. Für Audits eine Allowlist (User-Agent/IP) einrichten oder mit ≤ 1 Anfrage/s crawlen.`);
-F('hoch', 'Keine robots.txt',
+if (crawl.robots.status !== 200) F('hoch', 'Keine robots.txt',
   `<code>/robots.txt</code> liefert die HTML-404-Seite (Status ${crawl.robots.status}). Damit fehlen Crawl-Regeln und der <code>Sitemap:</code>-Hinweis. Die 404-Vorlage enthält zwar <code>meta robots="noai, noindex, nofollow, noarchive, GPTBot: noindex, …"</code>, das wirkt aber nur auf die Fehlerseite selbst und steuert keine Bots. Eine echte robots.txt (Sitemap-Zeile, ggf. Regeln für KI-Crawler) anlegen.`);
 if (broken.length) F('hoch', `${broken.length} defekte interne Ziele (4xx/5xx)`, `Diese URLs werden intern verlinkt, liefern aber Fehler – siehe Tabelle „Defekte Ziele“ mit den verlinkenden Seiten.`);
 if (noDesc.length) F('mittel', `${nf(noDesc.length)} Seiten ohne Meta-Description (${pct(noDesc.length, html.length)})`, 'Suchmaschinen erzeugen dann eigene Snippets; für Kernseiten individuelle Beschreibungen hinterlegen.');
@@ -189,7 +192,7 @@ if (dupTitlePages) F('mittel', `${nf(dupTitlePages)} Seiten teilen sich ${nf(tit
 if (imgNoAlt) F('mittel', `${nf(imgNoAlt)} Bilder ohne alt-Attribut auf ${nf(pagesNoAlt.length)} Seiten`, 'Für Screenreader (BITV 2.0 / WCAG 1.1.1) fehlt jede Textalternative. Dekorative Bilder mit <code>alt=""</code> kennzeichnen, inhaltliche beschreiben.');
 if (noH1.length || multiH1.length) F('niedrig', `Überschriftenstruktur: ${nf(noH1.length)} Seiten ohne H1, ${nf(multiH1.length)} mit mehreren H1`, 'Eine H1 pro Seite verbessert Orientierung für Screenreader und Suchmaschinen.');
 if (templ.length) F('niedrig', `Unaufgelöste Template-Links auf ${nf(templ.length)} Seiten`, 'Im ausgelieferten HTML stehen Links wie <code>href="{{ item.self.webUrl }}"</code> (clientseitiges Templating). Crawler ohne JavaScript sehen dort tote Links.');
-if (htmlNotInSm.length) F('niedrig', `${nf(htmlNotInSm.length)} erreichbare Seiten fehlen in der Sitemap`, `Die Sitemap listet ${nf(st.sitemapUrls)} URLs; ${nf(htmlNotInSm.length)} per Link gefundene HTML-Seiten (v. a. Pressemitteilungen) sind dort nicht enthalten.`);
+if (htmlNotInSm.length) F('niedrig', `${nf(htmlNotInSm.length)} erreichbare Seiten fehlen in der Sitemap`, `Die Sitemap listet ${nf(st.sitemapUrls)} URLs; ${nf(htmlNotInSm.length)} per Link gefundene HTML-Seiten sind dort nicht enthalten.`);
 const uncompressed = html.filter(n => !hdr(n, 'content-encoding'));
 if (uncompressed.length > html.length * 0.5) {
   const sum = uncompressed.reduce((s, n) => s + (n.bytes || 0), 0);
@@ -198,9 +201,10 @@ if (uncompressed.length > html.length * 0.5) {
   F('hoch', 'HTML wird unkomprimiert ausgeliefert',
     `Keine der ${nf(html.length)} Seiten kam mit <code>Content-Encoding</code>, obwohl der Crawler <code>gzip, br</code> anbot (auch CSS ist betroffen). Die Startseite wiegt ${kb(N[0].bytes)}; mit gzip wären es etwa ${kb(N[0].bytes * ratio)} (−${Math.round((1 - ratio) * 100)} %). Hochgerechnet auf alle analysierten Seiten: ${kb(sum)} statt ≈ ${kb(sum * ratio)}${measured.length ? '' : ' (Verhältnis aus einer Stichprobe der Startseite)'}. Kompression (mod_deflate/mod_brotli) für text/html, text/css und JavaScript aktivieren – das ist der größte einzelne Performance-Hebel.`);
 }
-const noindexArchive = noindex.filter(n => /pressearchiv/.test(n.url));
+if (crawl.robots.status === 200) F('info', 'robots.txt vorhanden', `${crawl.robots.groups?.length || 0} Regelgruppe(n), Sitemap-Verweis ${crawl.robots.sitemaps?.length ? 'gesetzt' : 'fehlt'}${crawl.robots.contentSignals?.length ? `; Content-Signals für KI: <code>${esc(crawl.robots.contentSignals.join('; '))}</code>` : ''}.`);
+const noindexArchive = noindex.filter(n => /pressearchiv|archiv/i.test(n.url));
 if (noindex.length) F('info', `noindex auf ${nf(noindex.length)} Seiten`,
-  `${nf(noindexArchive.length)} davon liegen im Pressearchiv (vermutlich gewollt). Die übrigen ${nf(noindex.length - noindexArchive.length)} prüfen, ob sie bewusst aus Suchmaschinen ausgeschlossen sind – siehe Tabelle im Abschnitt SEO.`);
+  `${noindexArchive.length ? `${nf(noindexArchive.length)} davon liegen in Archivbereichen (vermutlich gewollt). Die übrigen ` : 'Alle '}${nf(noindex.length - noindexArchive.length)} prüfen, ob sie bewusst aus Suchmaschinen ausgeschlossen sind – siehe Tabelle im Abschnitt SEO.`);
 if (imgTotal && !imgNoAlt) F('info', `Alle ${nf(imgTotal)} Bilder haben ein alt-Attribut`, `${nf(imgEmptyAlt)} davon sind mit <code>alt=""</code> als dekorativ markiert – stichprobenartig prüfen, ob darunter inhaltliche Bilder sind.`);
 const permMissing = secCover.find(([h]) => h === 'permissions-policy')[1] === 0;
 F('info', 'Sicherheits-Header gut aufgestellt', `HSTS, CSP, X-Frame-Options, X-Content-Type-Options und Referrer-Policy sind gesetzt${permMissing ? '; nur <code>Permissions-Policy</code> fehlt' : ''}.`);
@@ -317,7 +321,7 @@ footer { color: var(--ink-3); font-size: 12.5px; margin-top: 40px; border-top: 1
   <button class="theme" id="theme" type="button">Hell/Dunkel</button>
   <div class="eyebrow">ArachNet Crawl-Report · /[•]\\</div>
   <h1>${esc(host)} <span>//</span> technischer Website-Audit</h1>
-  <p>Automatischer Crawl mit ArachNet ${esc(crawl.generator.split(' ')[1] || '')} (Fork von cyohei9907/web-crawlers): Erreichbarkeit, Performance, Struktur, SEO-Grundlagen, Barrierefreiheit und Sicherheits-Header – plus was passiert, wenn ein Crawler auf die Firewall trifft.</p>
+  <p>Automatischer Crawl mit ArachNet ${esc(crawl.generator.split(' ')[1] || '')} (Fork von cyohei9907/web-crawlers): Erreichbarkeit, Performance, Struktur, SEO-Grundlagen, Barrierefreiheit und Sicherheits-Header${blocked.length ? ' – plus was passiert, wenn ein Crawler auf die Firewall trifft' : ''}.</p>
   <div class="meta"><span>Start: ${esc(dateDe)}</span><span>Dauer: ${(st.duration / 60000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} min</span><span>User-Agent: ${esc(crawl.ua)}</span></div>
 </div></header>
 
@@ -327,7 +331,7 @@ footer { color: var(--ink-3); font-size: 12.5px; margin-top: 40px; border-top: 1
   ${kpi('Interne Links', nf(st.edges), `${nf(Math.round(avg(html.map(n => n.linksInternal || 0))))} pro Seite`)}
   ${kpi('Median TTFB', nf(quant(ttfbHtml, .5)) + ' ms', `p90 ${nf(quant(ttfbHtml, .9))} ms`)}
   ${kpi('Ø Seitengröße', kb(avg(sizes)), `HTML, unkomprimiert`)}
-  ${kpi('WAF-Bounces', nf(blocked.length), `ab Anfrage ${nf(reqsBeforeBlock + 1)}`)}
+  ${blocked.length ? kpi('WAF-Bounces', nf(blocked.length), `ab Anfrage ${nf(reqsBeforeBlock + 1)}`) : kpi('Abweisungen', '0', 'kein 429/503, keine Sperre')}
   ${kpi('Externe Domains', nf(st.externalDomains), 'verlinkt')}
 </div>
 
@@ -337,12 +341,12 @@ footer { color: var(--ink-3); font-size: 12.5px; margin-top: 40px; border-top: 1
 </section>
 
 <section>
-  <h2>Crawl-Verlauf und Firewall</h2>
+  <h2>Crawl-Verlauf${blocked.length ? ' und Firewall' : ''}</h2>
   <div class="card">
-    ${legend([['Erfolgreiche Antworten', 'var(--series-1)'], ['WAF-Bounce (303 → /error_path/503.html)', 'var(--critical)']])}
+    ${blocked.length ? legend([['Erfolgreiche Antworten', 'var(--series-1)'], ['WAF-Bounce (Umleitung auf Fehlerseite)', 'var(--critical)']]) : ''}
     ${columns([{ name: 'OK', data: buckets.map(b => b[0]), color: 'var(--series-1)' }, { name: 'WAF', data: buckets.map(b => b[1]), color: 'var(--critical)' }],
       buckets.map((_, i) => `${(i * BUCKET / 60000).toLocaleString('de-DE')}′`), { stacked: true, xlab: 'Minute seit Crawl-Start (30-s-Intervalle)', tipCat: c => `ab ${c}`, every: 2 })}
-    <p class="cap">Anfragen pro 30 Sekunden. Der Crawler lief mit ${crawl.options.concurrency} parallelen Verbindungen und mindestens ${crawl.options.delay} ms Abstand (≈ 4 Anfragen/s). Ab Minute ${firstBlock ? (firstBlock.t / 60000).toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '–'} antwortete der Server nur noch mit Umleitungen auf eine 503-Seite; der Crawl wurde daraufhin beendet. Inzwischen erkennt der Crawler solche Gegenwehr selbst und stoppt nach 5 von 20 Abweisungen.</p>
+    <p class="cap">Anfragen pro 30 Sekunden. Der Crawler lief mit ${crawl.options.concurrency} parallelen Verbindungen und mindestens ${crawl.options.delay} ms Abstand (≈ ${(1000 / crawl.options.delay).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Anfragen/s). ${firstBlock ? `Ab Minute ${(firstBlock.t / 60000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} antwortete der Server nur noch mit Umleitungen auf eine Fehlerseite; der Crawl wurde daraufhin beendet. Der Crawler erkennt solche Gegenwehr inzwischen selbst und stoppt nach 5 von 20 Abweisungen.` : 'Der Server hat keine einzige Anfrage abgewiesen.'}</p>
     ${details('Tabellenansicht', table(['Intervall', '<span class="n">OK</span>', '<span class="n">WAF</span>'], buckets.map((b, i) => [`${(i * 30)}–${(i + 1) * 30} s`, `<span class="n">${b[0]}</span>`, `<span class="n">${b[1]}</span>`])))}
   </div>
 </section>
@@ -351,16 +355,16 @@ footer { color: var(--ink-3); font-size: 12.5px; margin-top: 40px; border-top: 1
   <h2>Antworten und Abdeckung</h2>
   <div class="grid2">
     <div class="card"><h3 style="margin-top:0">HTTP-Status aller Anfragen</h3>${hbar(statusRows)}<p class="cap">Dateien (PDF u. a.) wurden nur per HEAD geprüft (${nf(files.length)} Stück).</p></div>
-    <div class="card"><h3 style="margin-top:0">Analysierte Seiten nach Bereich</h3>${hbar(sections.slice(0, 9))}<p class="cap">Erstes Pfadsegment der URL. Kalender und „strukturierte Daten“ sind unterrepräsentiert, weil die Firewall vor Erreichen dieser Sitemap-Einträge blockte.</p></div>
+    <div class="card"><h3 style="margin-top:0">Analysierte Seiten nach Bereich</h3>${hbar(sections.slice(0, 9))}<p class="cap">Erstes Pfadsegment der URL.${blocked.length ? ' Einige Bereiche sind unterrepräsentiert, weil die Firewall vor Erreichen dieser Sitemap-Einträge blockte.' : ''}</p></div>
   </div>
   <div class="card" style="margin-top:16px">
     <ul class="two">
-      <li>Sitemap: <b>${nf(st.sitemapUrls)}</b> URLs, davon ${nf(htmlInSm)} als HTML analysiert; ${nf(smNotFetched)} Sitemap-URLs wurden wegen der Blockade nicht mehr erreicht.</li>
+      <li>Sitemap: <b>${nf(st.sitemapUrls)}</b> URLs, davon ${nf(htmlInSm)} als HTML analysiert${smNotFetched ? `; ${nf(smNotFetched)} Sitemap-URLs wurden ${blocked.length ? 'wegen der Blockade ' : ''}nicht erreicht` : ''}.</li>
       <li><b>${nf(htmlNotInSm.length)}</b> analysierte Seiten stehen nicht in der Sitemap.</li>
       <li>Klicktiefe ab Startseite: ${depthDist.map(([d, c]) => `${d}: ${nf(c)}`).join(' · ')}${unreachable ? ` · nicht per Link erreichbar: ${nf(unreachable)}` : ''}.</li>
       <li>Sitemap-Seiten ohne eingehenden Link aus dem Crawl: <b>${nf(orphans.length)}</b>.</li>
-      <li>Weiterleitungen (ohne WAF): ${countBy(redirects, n => n.status).map(([s, c]) => `${s} × ${c}`).join(', ') || 'keine'}.</li>
-      <li>Firewall-eigene Fehlerseiten abgerufen: ${nf(firewallPages.length)} (im Report ausgeklammert).</li>
+      <li>Weiterleitungen${blocked.length ? ' (ohne WAF)' : ''}: ${countBy(redirects, n => n.status).map(([s, c]) => `${s} × ${c}`).join(', ') || 'keine'}.</li>
+      ${firewallPages.length ? `<li>Firewall-eigene Fehlerseiten abgerufen: ${nf(firewallPages.length)} (im Report ausgeklammert).</li>` : ''}
     </ul>
   </div>
 </section>
@@ -440,14 +444,18 @@ footer { color: var(--ink-3); font-size: 12.5px; margin-top: 40px; border-top: 1
 <section>
   <h2>Empfehlungen</h2>
   <div class="card"><ol>
-    <li><b>Kompression aktivieren</b> (gzip/Brotli für HTML, CSS, JS): spart rund 85 % der übertragenen HTML-Daten.</li>
-    <li><b>robots.txt anlegen</b> mit <code>Sitemap: https://${esc(host)}/sitemap.xml</code> und – falls gewünscht – expliziten Regeln für KI-Crawler (statt bot-spezifischer Meta-Angaben auf der 404-Seite).</li>
-    <li><b>WAF-Regeln dokumentieren</b>: Schwelle und Sperrdauer kennen, Allowlist für eigene Audit-/Monitoring-Tools pflegen; die Sperre per 303 auf eine 503-Seite statt direktem <code>429 Too Many Requests</code> mit <code>Retry-After</code> erschwert es höflichen Crawlern, sich korrekt zu verhalten.</li>
-    <li><b>Meta-Descriptions</b> für die meistbesuchten und meistverlinkten Seiten pflegen; doppelte Titel auflösen (z. B. Pressemitteilungen, Paginierung).</li>
-    <li><b>Alt-Texte</b> für inhaltliche Bilder ergänzen, dekorative Bilder mit <code>alt=""</code> markieren.</li>
-    <li><b>Sitemap vervollständigen</b> (Pressemitteilungen, Unterseiten) und Kalender-Einträge mit <code>lastmod</code> versehen.</li>
-    <li><b>Template-Links</b> serverseitig rendern oder nicht als <code>href</code> ausliefern.</li>
-    <li><b>Langsame Übersichtsseiten</b> (Newsroom/Paginierung) cachen; die meisten Seiten sind mit ~${nf(quant(ttfbHtml, .5))} ms TTFB bereits schnell.</li>
+    ${[
+      uncompressed.length > html.length * 0.5 && '<li><b>Kompression aktivieren</b> (gzip/Brotli für HTML, CSS, JS): spart rund 85 % der übertragenen HTML-Daten.</li>',
+      crawl.robots.status !== 200 && `<li><b>robots.txt anlegen</b> mit <code>Sitemap: https://${esc(host)}/sitemap.xml</code> und – falls gewünscht – expliziten Regeln für KI-Crawler.</li>`,
+      blocked.length && '<li><b>WAF-Regeln dokumentieren</b>: Schwelle und Sperrdauer kennen, Allowlist für eigene Audit-/Monitoring-Tools pflegen; ein klares <code>429 Too Many Requests</code> mit <code>Retry-After</code> hilft höflichen Crawlern mehr als eine Umleitung auf eine Fehlerseite.</li>',
+      noDesc.length > html.length * 0.1 && '<li><b>Meta-Descriptions</b> für die wichtigsten und meistverlinkten Seiten pflegen.</li>',
+      dupTitlePages > html.length * 0.05 && '<li><b>Doppelte Titel auflösen</b> (Versionen, Paginierung, Archiv).</li>',
+      imgNoAlt && '<li><b>Alt-Texte</b> für inhaltliche Bilder ergänzen, dekorative Bilder mit <code>alt=""</code> markieren.</li>',
+      htmlNotInSm.length > 10 && `<li><b>Sitemap vervollständigen</b>: ${nf(htmlNotInSm.length)} erreichbare Seiten fehlen darin.</li>`,
+      templ.length && '<li><b>Template-Links</b> serverseitig rendern oder nicht als <code>href</code> ausliefern.</li>',
+      broken.length && `<li><b>${nf(broken.length)} defekte Ziele</b> reparieren oder umleiten (Tabelle oben).</li>`,
+      quant(ttfbHtml, .99) > 1500 && `<li><b>Langsame Ausreißer</b> cachen; der Median liegt bei ~${nf(quant(ttfbHtml, .5))} ms TTFB.</li>`,
+    ].filter(Boolean).join('\n    ') || '<li>Keine dringenden Maßnahmen – die Seite ist technisch in sehr gutem Zustand.</li>'}
   </ol></div>
 </section>
 
@@ -457,7 +465,7 @@ footer { color: var(--ink-3); font-size: 12.5px; margin-top: 40px; border-top: 1
     <li>Crawler: ArachNet (Node.js, ohne Abhängigkeiten) im Fork <a href="https://github.com/DasButterschnitzel/web-crawlers">DasButterschnitzel/web-crawlers</a>; robots.txt (RFC 9309), Sitemap-Seeding, Meta-Robots/X-Robots-Tag, adaptive Drosselung, Redirect-Ketten.</li>
     <li>Einstellungen: ${crawl.options.concurrency} parallele Verbindungen, mindestens ${crawl.options.delay} ms Abstand zwischen Anfragen, max. ${nf(crawl.options.maxPages)} Abrufe, Dateien nur per HEAD.</li>
     <li>Analysiert wird das ausgelieferte HTML ohne JavaScript-Ausführung. Inhalte werden nicht gespeichert, nur Metriken (Titel, Längen, Zählwerte, Header).</li>
-    <li>Einschränkung: Wegen der Firewall-Sperre ist die Abdeckung unvollständig (${nf(html.length)} von mindestens ${nf(N.length)} bekannten URLs analysiert).</li>
+    <li>${blocked.length ? `Einschränkung: Wegen der Firewall-Sperre ist die Abdeckung unvollständig (${nf(html.length)} von mindestens ${nf(N.length)} bekannten URLs analysiert).` : `Abdeckung: ${nf(html.length)} HTML-Seiten von ${nf(N.length)} bekannten URLs analysiert, ohne Abweisung durch den Server.`}</li>
   </ul></div>
 </section>
 

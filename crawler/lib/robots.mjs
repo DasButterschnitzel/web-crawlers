@@ -3,7 +3,7 @@
 
 export function parseRobots(text = '') {
   const groups = [];
-  const sitemaps = [];
+  const sitemaps = [], contentSignals = [];
   let cur = null, lastWasAgent = false;
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/#.*$/, '').trim();
@@ -19,6 +19,7 @@ export function parseRobots(text = '') {
     }
     lastWasAgent = false;
     if (key === 'sitemap') { if (val) sitemaps.push(val); continue; }
+    if (key === 'content-signal') { if (val) contentSignals.push(val); continue; }   // contentsignals.org: what AI may do with the content
     if (!cur) continue;
     if (key === 'allow' || key === 'disallow') {
       if (key === 'disallow' && !val) continue;      // "Disallow:" (empty) allows everything
@@ -28,7 +29,7 @@ export function parseRobots(text = '') {
       if (Number.isFinite(d)) cur.delay = d;
     }
   }
-  return { groups, sitemaps };
+  return { groups, sitemaps, contentSignals };
 }
 
 function patternToRe(p) {

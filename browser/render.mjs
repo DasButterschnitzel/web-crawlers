@@ -17,10 +17,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
 const flag = n => process.argv.includes('--' + n);
-const BUILD = path.join(ROOT, 'video3d', 'build');
+// per-site build dir: audio.json/.bin, web-graph.json, webcache/ (see README)
+const BUILD = path.resolve(arg('build', path.join(ROOT, 'video3d', 'build')));
+const DARK = flag('dark'), ALLOW = (arg('allow-hosts') || '').split(',').filter(Boolean);
 const CACHE = path.resolve(arg('cache', path.join(BUILD, 'webcache')));
 const RUN = path.resolve(arg('run', path.join(ROOT, 'runs', 'dreieich')));
-const OUT = path.join(ROOT, 'video3d', 'out', 'web');
+const OUT = path.resolve(arg('out', path.join(ROOT, 'video3d', 'out', 'web')));
 const MASTER3D = path.resolve(arg('master3d', path.join(ROOT, 'video3d', 'out', 'arachnet-dreieich.mp4')));
 const FPS = +arg('fps', 60), W = 1920, H = 1080;
 mkdirSync(OUT, { recursive: true });
@@ -68,8 +70,10 @@ function makePlan() {
   let t = sec(3);
   for (let i = 0; i < 4; i++, t += 8 * bar) web(t, t + 8 * bar);
   for (let i = 0; i < 8; i++, t += 4 * bar) web(t, t + 4 * bar, { flicker: true });
-  web(t, t + 4 * bar, { alertRamp: true }); t += 4 * bar;
-  segs.push({ kind: 'waf', t0: t, t1: t + 4 * bar }); t += 4 * bar;
+  web(t, t + 4 * bar, { alertRamp: !!wafUrl }); t += 4 * bar;
+  if (wafUrl) segs.push({ kind: 'waf', t0: t, t1: t + 4 * bar });       // the firewall's own page, only if the site pushed back
+  else web(t, t + 4 * bar, { flicker: true, deepScan: true });
+  t += 4 * bar;
   v3d(t, sec(11)); t = sec(11);
   for (const b of [8, 8, 8, 4, 4, 2]) { web(t, t + b * bar); t += b * bar; }
   for (let i = 0; i < 5; i++, t += 2 * bar) web(t, t + 2 * bar, { montage: true });
@@ -79,7 +83,7 @@ function makePlan() {
 
   // decorate: pages, links, traversals, look
   const phase = t => t < sec(1) ? 'BOOT' : t < 40 ? 'PHASE 01 // TARGET LOCK' : t < sec(6) ? 'PHASE 02 // INFILTRATION' : t < sec(9) ? 'PHASE 03 // PROLIFERATION'
-    : t < sec(11) ? 'PHASE 04 // COUNTERMEASURES' : t < sec(14) ? 'PHASE 05 // DEEP CRAWL' : t < sec(15) ? 'PHASE 06 // OVERDRIVE' : 'PHASE 07 // RETURN TO ROOT';
+    : t < sec(11) ? (wafUrl ? 'PHASE 04 // COUNTERMEASURES' : 'PHASE 04 // DEEP SCAN') : t < sec(14) ? 'PHASE 05 // DEEP CRAWL' : t < sec(15) ? 'PHASE 06 // OVERDRIVE' : 'PHASE 07 // RETURN TO ROOT';
   const wafNode = graph.nodes.findIndex(n => graph.palette[n[3]] === '#ff1e3c');
   segs.forEach((s, k) => {
     if (s.kind === '3d') return;
@@ -125,12 +129,14 @@ function makePlan() {
       next.travelIn = s.travelOut;
     }
     if (!s.travelIn && s.t0 > 1) s.flashes = [[s.t0, s.montage ? 0.5 : 0.7]];
-    if (s.t1 - s.t0 >= 9 && !s.card) s.card = { t0: s.t0 + (s.travelIn ? 1.0 : 0.3), t1: s.t0 + (s.travelIn ? 3.8 : 3.1), kicker: `NODE ${String(s.nodeNo).padStart(3, '0')}  //  ${secName(r.url)}`, title: (s.page.title || '').replace(/\s*\|\s*Stadt Dreieich\s*$/i, '').toUpperCase().slice(0, 34), sub: s.page.path.slice(0, 80) };
+    if (s.t1 - s.t0 >= 9 && !s.card) s.card = { t0: s.t0 + (s.travelIn ? 1.0 : 0.3), t1: s.t0 + (s.travelIn ? 3.8 : 3.1), kicker: `NODE ${String(s.nodeNo).padStart(3, '0')}  //  ${secName(r.url)}`, title: (s.page.title || '').replace(/^(.+?)\s+[|–—-]\s+[^|–—]+$/, '$1').toUpperCase().slice(0, 34), sub: s.page.path.slice(0, 80) };
     // the page's look over the piece: original -> negative flashes -> negative -> red
     const inv = s.t0 < sec(8) ? 0 : 1;
     s.theme = [[s.t0, s.montage ? (s.ri % 2) : inv, 0]];
     if (s.alertRamp) { s.theme = [[s.t0, 1, 0], [s.t1, 1, 0.6]]; s.alert = 0.8; s.alertText = '⚠ ANOMALOUS RESPONSES'; s.alertSub = 'REDIRECT STORM  ·  303 SEE OTHER  ·  RATE GOVERNOR ENGAGED'; }
     if (s.montage) s.flicker = true;
+    s.darkSite = DARK;
+    if (s.deepScan) s.card = { t0: s.t0 + 1.0, t1: s.t0 + 3.8, kicker: 'PHASE 04', title: 'DEEP SCAN', sub: 'NO COUNTERMEASURES  ·  ROBOTS: WELCOME' };
     if (s.finale) { s.theme = [[s.t0, 1, 0]]; s.final = 1; s.card = { t0: s.t0 + 0.3, t1: s.t0 + 4.2, kicker: 'PHASE 07', title: 'RETURN TO ROOT', sub: `${route.length} PAGES WALKED  ·  ${crawl.stats.nodes.toLocaleString('en-US')} NODES MAPPED` }; s.fade = [[s.t1 - 1.2, 0], [s.t1, 1]]; }
     if (s.boot) s.fade = [[0, 1], [0.6, 0]];
   });
@@ -188,7 +194,8 @@ async function openSegment(browser, ua, seg, k) {
   await page.setBypassCSP(true);
   page.on('pageerror', e => { if (!/eyeAble|matomo/i.test(e.message)) console.error(`  [seg ${k} page error]`, e.message.slice(0, 200)); });
   page.on('console', m => { if (m.type() === 'error' && /arach|overlay|spider|three/i.test(m.text())) console.error(`  [seg ${k}]`, m.text().slice(0, 200)); });
-  await routeRequests(page, { site, cache, record: false, mounts });
+  if (DARK) await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+  await routeRequests(page, { site, cache, record: false, mounts, allowHosts: ALLOW });
   await page.evaluateOnNewDocument(clock, 1000 + k * 7919);
   await page.goto(seg.url, { waitUntil: 'load', timeout: 90000 });
   await page.evaluate(() => { for (let i = 0; i < 90; i++) window.__tick(1000 / 60); });
@@ -290,6 +297,7 @@ if (flag('assemble') || flag('all')) {
   const silent = path.join(OUT, 'web-silent.mp4');
   await run('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(OUT, 'concat.txt'), '-c', 'copy', silent]);
   const final = path.resolve(arg('final', path.join(ROOT, 'video3d', 'out', 'arachnet-web.mp4')));
-  await run('ffmpeg', ['-y', '-loglevel', 'error', '-i', silent, '-i', path.join(BUILD, 'track.wav'), '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k', '-shortest', '-movflags', '+faststart', final]);
+  const audioTrack = path.resolve(arg('track', path.join(ROOT, 'video3d', 'build', 'track.wav')));
+  await run('ffmpeg', ['-y', '-loglevel', 'error', '-i', silent, '-i', audioTrack, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k', '-shortest', '-movflags', '+faststart', final]);
   console.log(`  -> ${final}`);
 }

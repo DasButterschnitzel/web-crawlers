@@ -45,7 +45,10 @@ export class Cache {
  * Route requests: own site -> network (recording) or cache (replay);
  * our local injection server -> network; everything third-party -> blocked.
  */
-export async function routeRequests(page, { site, cache, record, local, mounts, freshDocuments = false }) {
+const ASSET_TYPES = new Set(['image', 'font', 'stylesheet', 'media']);
+// Next.js & co. fetch route data from the page's own URL (RSC header): cache those apart from the HTML
+const cacheKey = req => { const h = req.headers(); return req.resourceType() !== 'document' && (h.rsc || h['next-router-prefetch'] || h['next-router-state-tree']) ? req.url() + '#rsc' : req.url(); };
+export async function routeRequests(page, { site, cache, record, local, mounts, freshDocuments = false, allowHosts = [] }) {
   await page.setRequestInterception(true);
   page.on('request', req => {
     const u = req.url();
@@ -59,19 +62,21 @@ export async function routeRequests(page, { site, cache, record, local, mounts, 
     }
     if (u.startsWith('data:') || u.startsWith('blob:')) return req.continue();
     if (local && u.startsWith(local)) return req.continue();
-    const own = u.startsWith(site);
+    let host = ''; try { host = new URL(u).hostname; } catch {}
+    const asset = allowHosts.some(h => host === h || host.endsWith('.' + h)) && ASSET_TYPES.has(req.resourceType());
+    const own = u.startsWith(site) || asset;
     if (!own) return req.abort('blockedbyclient');
-    const hit = freshDocuments && req.resourceType() === 'document' ? null : cache.get(u);
+    const hit = freshDocuments && req.resourceType() === 'document' ? null : cache.get(cacheKey(req));
     if (record && !hit) { page.__net = (page.__net || 0) + 1; return req.continue(); }   // already cached: never ask the site twice
     if (!hit) return req.respond({ status: 404, contentType: 'text/plain', body: '' });
     req.respond({ status: hit.status, contentType: hit.contentType, body: hit.body, headers: { 'access-control-allow-origin': '*' } });
   });
   if (record) page.on('response', async res => {
-    const u = res.url(), req = res.request();
-    if (!u.startsWith(site) || req.method() !== 'GET' || cache.has(u)) return;
+    const u = res.url(), req = res.request(), key = cacheKey(req);
+    if ((!u.startsWith(site) && !allowHosts.some(h => { try { const x = new URL(u).hostname; return x === h || x.endsWith('.' + h); } catch { return false; } })) || req.method() !== 'GET' || cache.has(key)) return;
     const st = res.status();
     if (st >= 300 && st < 400) return;
-    try { cache.put(u, st, res.headers(), await res.buffer()); } catch { /* streamed / aborted */ }
+    try { cache.put(key, st, res.headers(), await res.buffer()); } catch { /* streamed / aborted */ }
   });
 }
 
@@ -90,8 +95,8 @@ export async function quietPage(page) {
 }
 
 /** visible, in-site content links (not header/nav/footer), with document rects */
-export async function contentLinks(page, site) {
-  return page.evaluate(site => {
+export async function contentLinks(page, site, { header = false } = {}) {
+  return page.evaluate((site, header) => {
     const out = [];
     const seen = new Set();
     for (const a of document.querySelectorAll('a[href]')) {
@@ -100,7 +105,7 @@ export async function contentLinks(page, site) {
       u.hash = '';
       const href = u.href;
       if (!href.startsWith(site) || /\.(pdf|jpe?g|png|gif|svg|webp|zip|docx?|xlsx?|ics|xml|rss|vcf|json)(\?|$)/i.test(u.pathname)) continue;
-      if (a.closest('header, footer, [role=banner], [role=contentinfo], .breadcrumb, .main-navigation, .footer')) continue;
+      if (a.closest(header ? 'footer, [role=contentinfo], .breadcrumb, .footer' : 'header, footer, [role=banner], [role=contentinfo], .breadcrumb, .main-navigation, .footer')) continue;
       const r = a.getBoundingClientRect();
       if (r.width < 24 || r.height < 8) continue;
       const cs = getComputedStyle(a);
@@ -112,7 +117,7 @@ export async function contentLinks(page, site) {
       out.push({ href, text: text.slice(0, 90), x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height });
     }
     return out;
-  }, site);
+  }, site, header);
 }
 
 export const sleep = ms => new Promise(r => setTimeout(r, ms));

@@ -41,6 +41,7 @@ export class Director {
   setModel(model) {
     this.m = model;
     this.host ||= model.meta.host;
+    this.hasIce = model.nodes.some(n => n.blocked);          // only a site that pushed back gets the firewall act
     this.rank = model.nodes.slice().filter(n => !n.blocked).sort((a, b) => (b.prn || 0) - (a.prn || 0)).slice(0, 10);
     // tour of the city: hubs of the biggest districts
     const bySec = new Map();
@@ -82,7 +83,7 @@ export class Director {
     if (t < T.lock + 6) return null;
     if (t < T.crawl) { const a = (t - T.lock) * 0.25; return { x: Math.cos(a) * 10, z: Math.sin(a) * 10 }; }
     if (t < T.city) {
-      if (t > T.ice + 12) return { x: 0, z: 0 };            // withdrawal
+      if (this.hasIce && t > T.ice + 12) return { x: 0, z: 0 };            // withdrawal
       const k = lastLE(m.nodeTimes, t + 0.3);
       if (k < 0) return { x: 0, z: 0 };
       const p = ctx.graphWorld(k);
@@ -183,7 +184,7 @@ export class Director {
       default: pos = v3(0, 20, 60); look = v3(0, 10, 0);
     }
     // shake on kicks (more during the firewall storm)
-    const shake = (0.12 + (t > T.ice && t < T.city ? 0.5 : 0) + (t > T.coreDrop && t < T.outro ? 0.3 : 0)) * A.kick;
+    const shake = (0.12 + (this.hasIce && t > T.ice && t < T.city ? 0.5 : 0) + (t > T.coreDrop && t < T.outro ? 0.3 : 0)) * A.kick;
     const j = Math.floor(t * 30);
     pos = [pos[0] + (hash(j, 1) - 0.5) * shake, pos[1] + (hash(j, 2) - 0.5) * shake, pos[2] + (hash(j, 3) - 0.5) * shake];
     return { pos, look, fov, roll, cut: sh };
@@ -193,7 +194,7 @@ export class Director {
   params(t, A) {
     const T = this.T, sh = this.shotAt(t);
     const sinceCut = t - sh.t0;
-    const ice = win(t, T.ice, T.city, 1.2, 2.0);
+    const ice = this.hasIce ? win(t, T.ice, T.city, 1.2, 2.0) : 0;
     const city = ease(ramp(t, T.city, T.city + 3)) * (1 - ease(ramp(t, T.core - 1.5, T.core + 1.5)));
     const morph = ease(ramp(t, T.city - 0.5, T.city + 6)) * (1 - ease(ramp(t, T.core - 3, T.core + 2.5)));
     const drop = t > T.coreDrop && t < T.outro;
@@ -227,7 +228,7 @@ export class Director {
       seed: Math.floor(t * 7),
     };
     // flashes at act changes (one decaying white pulse, red at the firewall)
-    for (const [at, col, amt] of [[T.lock, '#ffffff', 0.4], [T.crawl, '#bff8ff', 0.7], [T.prolif, '#ffffff', 0.5], [T.ice, '#ff1e3c', 0.8], [T.city, '#ffffff', 0.7], [T.core, '#ffffff', 0.6], [T.coreDrop, '#ff2bd6', 0.7], [T.outro, '#ffffff', 0.5]]) {
+    for (const [at, col, amt] of [[T.lock, '#ffffff', 0.4], [T.crawl, '#bff8ff', 0.7], [T.prolif, '#ffffff', 0.5], [T.ice, this.hasIce ? '#ff1e3c' : '#bff8ff', this.hasIce ? 0.8 : 0.5], [T.city, '#ffffff', 0.7], [T.core, '#ffffff', 0.6], [T.coreDrop, '#ff2bd6', 0.7], [T.outro, '#ffffff', 0.5]]) {
       const d = t - at;
       if (d >= 0 && d < 0.8) { P.flash = Math.max(P.flash, amt * Math.exp(-d * 6)); P.flashColor = col; }
     }
@@ -255,7 +256,7 @@ export class Director {
         legend: (t > T.latency && t < T.core) ? fadeIn(T.latency) * (1 - ease(ramp(t, T.core - 1, T.core))) : 0,
         summary: t > T.outro + 3 ? fadeIn(T.outro + 3) * (1 - ease(ramp(t, T.end - 11, T.end - 9.5))) : 0,
       },
-      alert: win(t, T.ice + 0.5, T.city - 1, 0.4, 0.8),
+      alert: this.hasIce ? win(t, T.ice + 0.5, T.city - 1, 0.4, 0.8) : 0,
       alertText: t < T.ice + 16 ? '⚠ COUNTERMEASURES DETECTED' : '⚠ WITHDRAWAL PROTOCOL',
       alertSub: t < T.ice + 16 ? 'WAF BOUNCE 303 → /error_path/503.html  ·  ICE ENGAGED' : 'POLITENESS DIRECTIVE  ·  CRAWL HALTED  ·  DATA SECURED',
       phase: this.phaseName(t),
@@ -275,7 +276,7 @@ export class Director {
     if (t < T.crawl) return 'PHASE 01 // TARGET LOCK';
     if (t < T.prolif) return 'PHASE 02 // INFILTRATION';
     if (t < T.ice) return 'PHASE 03 // PROLIFERATION';
-    if (t < T.city) return 'PHASE 04 // COUNTERMEASURES';
+    if (t < T.city) return this.hasIce ? 'PHASE 04 // COUNTERMEASURES' : 'PHASE 04 // DEEP SCAN';
     if (t < T.latency) return 'PHASE 05 // DATA CITY';
     if (t < T.anomaly) return 'PHASE 05 // LATENCY SCAN';
     if (t < T.core) return 'PHASE 05 // ANOMALY SCAN';
@@ -291,7 +292,8 @@ export class Director {
       { t0: T.lock + 0.2, t1: T.lock + 5, title: 'TARGET LOCK', kicker: 'PHASE 01', sub: (this.host || '').toUpperCase() },
       { t0: T.crawl, t1: T.crawl + 4.8, title: 'INFILTRATION', kicker: 'PHASE 02', sub: 'CRAWL SEQUENCE ENGAGED' },
       { t0: T.prolif, t1: T.prolif + 4.8, title: 'PROLIFERATION', kicker: 'PHASE 03', sub: `${okN} PAGES · ${(s.edges || 0).toLocaleString('en-US')} LINKS` },
-      { t0: T.ice, t1: T.ice + 3.6, title: 'COUNTERMEASURES', kicker: 'PHASE 04', sub: 'WEB APPLICATION FIREWALL ENGAGED', y: 560 },
+      this.hasIce ? { t0: T.ice, t1: T.ice + 3.6, title: 'COUNTERMEASURES', kicker: 'PHASE 04', sub: 'WEB APPLICATION FIREWALL ENGAGED', y: 560 }
+        : { t0: T.ice, t1: T.ice + 3.6, title: 'DEEP SCAN', kicker: 'PHASE 04', sub: 'NO COUNTERMEASURES  ·  ROBOTS: WELCOME', y: 560 },
       { t0: T.city + 0.3, t1: T.city + 5, title: 'DATA CITY', kicker: 'PHASE 05', sub: 'ONE TOWER PER PAGE · HEIGHT = CONTENT + PAGERANK' },
       { t0: T.latency, t1: T.latency + 3.6, title: 'LATENCY SCAN', kicker: 'PHASE 05.2', size: 72 },
       { t0: T.anomaly, t1: T.anomaly + 3.6, title: 'ANOMALY SCAN', kicker: 'PHASE 05.3', size: 72 },

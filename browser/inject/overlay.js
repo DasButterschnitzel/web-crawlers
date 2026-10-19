@@ -50,6 +50,10 @@ style.textContent = `
   ::selection { background: #ff2bd6; color: #fff; }`;
 document.head.appendChild(style);
 const root = document.documentElement;
+// dark sites: the takeover is a neon grade (a blend layer over the page), not a negative
+const tint = document.createElement('arachnet-tint');
+tint.style.cssText = 'all: initial; position: fixed; inset: 0; z-index: 2147483646; pointer-events: none; display: block; opacity: 0; mix-blend-mode: color-dodge; background: radial-gradient(ellipse at 30% 20%, rgba(0,240,255,.55), transparent 60%), radial-gradient(ellipse at 75% 80%, rgba(255,43,214,.5), transparent 60%);';
+if (cfg.seg.darkSite) document.documentElement.appendChild(tint);
 
 // ---------------------------------------------------------------- spider
 const seg = cfg.seg;
@@ -103,9 +107,16 @@ function frame(t, A) {
   }
   // page infection + beat glitches
   let [inv, red] = themeAt(t);
-  if (seg.flicker && A.sinceDownbeat < 0.09 && (A.downbeatIndex % 2 === 0)) inv = 1 - inv;
+  if (!seg.darkSite && seg.flicker && A.sinceDownbeat < 0.09 && (A.downbeatIndex % 2 === 0)) inv = 1 - inv;
   const hit = A.sinceOnset < 0.06 && A.flux > 0.7;
   const filt = [];
+  if (seg.darkSite) {
+    // a dark page stays dark: saturate + shift its accents, glow through the blend layer, flash negative on hits
+    if (inv > 0.01) filt.push(`saturate(${(1 + 1.6 * inv).toFixed(2)})`, `hue-rotate(${(-25 * inv).toFixed(1)}deg)`, `contrast(${(1 + 0.18 * inv).toFixed(2)})`, `brightness(${(1 + 0.15 * inv).toFixed(2)})`);
+    tint.style.opacity = (inv * (0.38 + 0.3 * A.bands[1] + 0.25 * A.kick)).toFixed(3);
+    if (seg.flicker && A.sinceDownbeat < 0.07 && A.downbeatIndex % 2 === 0) filt.push('invert(1)', 'hue-rotate(180deg)');
+    inv = 0;
+  }
   if (inv > 0.01) filt.push(`invert(${inv.toFixed(3)})`, `hue-rotate(${(inv * 180).toFixed(1)}deg)`, `saturate(${(1 + 0.7 * inv).toFixed(2)})`, `contrast(${(1 + 0.12 * inv).toFixed(2)})`);
   if (red > 0.01) filt.push(`sepia(${red.toFixed(2)})`, `hue-rotate(${(-40 * red).toFixed(1)}deg)`, `saturate(${(1 + 3 * red).toFixed(2)})`);
   if (hit) filt.push(`hue-rotate(${(A.flux * 60).toFixed(0)}deg)`);

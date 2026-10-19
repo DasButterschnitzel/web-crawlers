@@ -37,6 +37,26 @@ node export-graph.mjs ../runs/<run> ../video3d/build/webcache/route.json ../vide
 node render.mjs --still 30,120 && node render.mjs --workers 3 && node render.mjs --assemble
 ```
 
+**Example: modelcontextprotocol.io** — the MCP docs welcome AI agents (`Content-Signal:
+ai-train=yes, search=yes, ai-input=yes` in robots.txt, an `llms.txt`), so the spider walks the
+manual agents use to talk to tools. Dark sites get a neon grade instead of a negative, the
+firewall act only appears when a site really pushed back, and a curated `--path` keeps the walk
+on the topics you want (each step is a real link walk when the link is visible, else a cut):
+
+```bash
+node crawler/crawl.mjs https://modelcontextprotocol.io/ --concurrency 2 --delay 500 --out runs/mcp
+cd browser
+node capture.mjs https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro --dark --header-links \
+     --allow-hosts mintcdn.com --crawl ../runs/mcp/crawl.json --out ../video3d/build-mcp/webcache \
+     --path /docs/2026-07-28/getting-started/intro,/docs/2026-07-28/learn/architecture,/specification/2026-07-28/server/tools
+node export-graph.mjs ../runs/mcp ../video3d/build-mcp/webcache/route.json ../video3d/build-mcp/web-graph.json
+node render.mjs --build ../video3d/build-mcp --run ../runs/mcp --out ../video3d/out/web-mcp --dark --allow-hosts mintcdn.com \
+     --master3d ../video3d/out/arachnet-mcp-3d.mp4 --final ../video3d/out/arachnet-mcp.mp4 --workers 3
+```
+
+Other capture knobs: `--prefer <regex>` (bonus for matching links), `--variety <n>` (penalty for
+staying in one area), `--jump-gap <n>` (jump to a clearly better open link).
+
 | Part | What it does |
 |---|---|
 | [`crawler/`](crawler) | **ArachNet engine** (Node ≥ 22, zero dependencies): robots.txt (RFC 9309) with Crawl-delay, sitemap/sitemap-index discovery, meta robots + `X-Robots-Tag` (`nofollow` pages only expand into URLs the operator published), shared politeness gate with adaptive back-off and `Retry-After`, **automatic stop when the server pushes back** (429/503 or bounces to error pages), redirect chains, TTFB/total timings, page weight and gzip potential, SEO + accessibility signals, DOM fingerprints, full link graph with click depth and PageRank. Every step is an event (`events.ndjson`), streamed live over SSE. |

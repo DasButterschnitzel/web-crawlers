@@ -39,7 +39,8 @@ await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
 await page.setUserAgent(ua);
 await page.setBypassCSP(true);
 // pages are always fetched live; images, scripts and fonts come from the local cache when we have them
-await routeRequests(page, { site, cache: new Cache(path.join(BUILD, 'webcache')), record: !flag('offline'), freshDocuments: !flag('offline'), mounts });
+if (flag('dark')) await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+await routeRequests(page, { site, cache: new Cache(arg('cache') || path.join(BUILD, 'webcache')), record: !flag('offline'), freshDocuments: !flag('offline'), mounts, allowHosts: (arg('allow-hosts') || '').split(',').filter(Boolean) });
 let pushback = 0;
 if (flag('debug')) { page.on('framenavigated', f => console.log('    [nav]', f === page.mainFrame() ? 'main' : 'sub', f.url().slice(0, 90))); page.on('framedetached', f => console.log('    [detached]', f.url().slice(0, 90))); page.on('console', m => { if (m.type() === 'error') console.log('    [console]', m.text().slice(0, 120)); }); }
 page.on('response', r => { if (r.url().startsWith(site) && (r.status() === 429 || r.status() === 503 || /error_path/.test(r.headers().location || ''))) pushback++; });
@@ -81,7 +82,7 @@ for (let i = 0; i < PAGES && url; i++) {
     travelOut: next ? { t0: DWELL - 1.2, t1: DWELL + 1.2, fromNode: gi(url), toNode: gi(next.href), fromPath: decodeURIComponent(new URL(url).pathname), toPath: decodeURIComponent(new URL(next.href).pathname), edge: 'LIVE' } : null,
     card: { t0: 0.6, t1: 3.4, kicker: `LIVE NODE ${String(i + 1).padStart(3, '0')}`, title: (data.title || '').replace(/\s*\|.*$/, '').toUpperCase().slice(0, 34), sub: decodeURIComponent(new URL(url).pathname).slice(0, 80) },
     telemetry: [['PAGES WALKED', String(i + 1)], ['TTFB', (data.ttfb ?? '—') + ' MS'], ['DOM NODES', String(data.dom)], ['WORDS ON PAGE', String(data.words)], ['LINKS', String(data.links)], ['ELAPSED', `${Math.round(elapsed)} S`]],
-    miniLabel: 'LIVE', mini: !!graph, enter: { x: 960, y: 470 }, readMax: 2300, theme: [[0, 0, 0]],
+    miniLabel: 'LIVE', mini: !!graph, enter: { x: 960, y: 470 }, readMax: 2300, theme: [[0, 0, 0]], darkSite: flag('dark'),
   };
   await page.evaluate(c => { window.__arachCfg = c; }, { mode: 'live', base: site + '__arachnet/', track: audioMeta && !flag('no-audio') ? (audioMeta.title || '').toUpperCase() : 'NO SIGNAL', bounces: 0, wordsBefore: words, audioOffset: elapsed, seg });
   await page.addScriptTag({ url: site + '__arachnet/inject/spider.js' });

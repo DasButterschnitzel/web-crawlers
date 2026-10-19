@@ -118,7 +118,7 @@ export class WebHUD {
     const pa = a * clamp01((t - S.pageT0 - 0.3) / 0.6);
     if (pa <= 0) return;
     this.panel(x, y, w, h, 'INTERCEPT  ·  NODE ' + pad(S.nodeNo || 0, 4), pa, p.blocked ? C.red : C.cyan);
-    const title = (p.title || p.path || '').replace(/\s*\|\s*Stadt Dreieich\s*$/i, '').toUpperCase();
+    const title = (p.title || p.path || '').replace(/^(.+?)\s+[|–—-]\s+[^|–—]+$/, '$1').toUpperCase();
     this.text(this.decode(title.slice(0, 44), clamp01((t - S.pageT0) / 1.4), 11), x + 14, y + 30, p.blocked ? C.red : C.white, 19, LAB, 'left', 700, pa);
     const cells = p.blocked
       ? [['STATUS', '303→503'], ['WAF', 'ENGAGED'], ['BOUNCES', String(S.bounces || 618)], ['ACCESS', 'DENIED']]

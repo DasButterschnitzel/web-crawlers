@@ -56,6 +56,7 @@ for (let i = 0; i < PAGES && url; i++) {
   let res;
   try { res = await page.goto(url, { waitUntil: 'load', timeout: 60000 }); } catch (e) { console.log('  !', e.message, (e.stack || '').split('\n').slice(1, 4).join(' | ')); break; }
   if (pushback) { console.log('  !! server pushback -> the spider withdraws'); break; }
+  if (page.url() !== url) { url = page.url(); visited.add(url); }     // followed a redirect: show where we really are
   await quietPage(page);
   // what this page really is (measured now, in this browser)
   const data = await page.evaluate(() => {
@@ -88,6 +89,13 @@ for (let i = 0; i < PAGES && url; i++) {
   if (!flag('no-audio')) await page.evaluate(off => { const el = window.__arachAudioEl; if (el) { el.currentTime = off % (el.duration || 1e9); } }, elapsed).catch(() => {});
   console.log(`  [${i + 1}] ${res?.status()} ${data.ttfb}ms ${Math.round((data.bytes || 0) / 1024)}KB  ${url.replace(site, '/')}  -> ${next ? next.text.slice(0, 40) : '(end)'}`);
   log.push({ url, status: res?.status(), ...data, next: next?.href || null, at: new Date().toISOString() });
+  // --shots <dir>: one screenshot per page, halfway through the visit
+  if (arg('shots')) {
+    mkdirSync(arg('shots'), { recursive: true });
+    const half = DWELL * 500 - (Date.now() - tNav);
+    if (half > 0) await sleep(half);
+    await page.screenshot({ path: path.join(arg('shots'), `live-${String(i + 1).padStart(2, '0')}.png`) }).catch(() => {});
+  }
   const wait = DWELL * 1000 - (Date.now() - tNav);
   if (wait > 0) await sleep(wait);
   words = await page.evaluate(() => window.__arachSpider?.words || 0).catch(() => words) + words;

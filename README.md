@@ -8,6 +8,35 @@
 
 ![ArachNet: the spider under its link graph](docs/arachnet-spider.jpg)
 
+### The spider on the real website
+
+The heart of the original — a spider walking on the words of a page — now walks a real
+site, page after page, following links the crawler actually found:
+
+- **[`browser/live.mjs`](browser/live.mjs)** opens a visible Chrome on a live site. The spider
+  (the extension's spider, now with a neon look, audio coupling and a `lure()` to walk to a
+  target) reads the real words — they glitch in its overlay, the page itself is never
+  modified — then walks to a real content link, the view flies that link through 3D link
+  space, and the next page loads. A HUD shows what the spider reads (the *read stream*), the
+  page's measured TTFB / size / DOM / words, its DOM barcode, the signal and a 3D minimap.
+  Polite by design: one page per `--dwell` seconds, third-party requests blocked, consent
+  dialogs closed without consenting, stop on server pushback, staff-directory pages skipped.
+- **[`browser/capture.mjs`](browser/capture.mjs)** walks the same kind of route once, slowly,
+  and stores every same-site response in a local cache;
+  **[`browser/render.mjs`](browser/render.mjs)** then renders the music video entirely
+  offline: each page runs on a virtual clock (rAF, timers, `Date`), segments follow the
+  song's sections, link walks are timed to land on downbeats, the site turns negative as the
+  spider takes over, the firewall's own error page goes red, and the 3D visualiser provides
+  the interludes.
+
+```bash
+cd browser && npm install
+node live.mjs https://www.example.org --dwell 25 --pages 20                 # watch it live
+node capture.mjs https://www.example.org --pages 30 --delay 20000 --crawl ../runs/<run>/crawl.json
+node export-graph.mjs ../runs/<run> ../video3d/build/webcache/route.json ../video3d/build/web-graph.json
+node render.mjs --still 30,120 && node render.mjs --workers 3 && node render.mjs --assemble
+```
+
 | Part | What it does |
 |---|---|
 | [`crawler/`](crawler) | **ArachNet engine** (Node ≥ 22, zero dependencies): robots.txt (RFC 9309) with Crawl-delay, sitemap/sitemap-index discovery, meta robots + `X-Robots-Tag` (`nofollow` pages only expand into URLs the operator published), shared politeness gate with adaptive back-off and `Retry-After`, **automatic stop when the server pushes back** (429/503 or bounces to error pages), redirect chains, TTFB/total timings, page weight and gzip potential, SEO + accessibility signals, DOM fingerprints, full link graph with click depth and PageRank. Every step is an event (`events.ndjson`), streamed live over SSE. |

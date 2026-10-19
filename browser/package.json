@@ -1,0 +1,8 @@
+{
+  "name": "arachnet-browser",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The spider on the real website: live browsing, polite capture, deterministic render",
+  "type": "module",
+  "dependencies": { "puppeteer-core": "25.14.0" }
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArachNet viz3d</title>
+<style>
+  @font-face { font-family: 'Orbitron'; font-weight: 400; src: url(node_modules/@fontsource/orbitron/files/orbitron-latin-400-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Orbitron'; font-weight: 700; src: url(node_modules/@fontsource/orbitron/files/orbitron-latin-700-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Orbitron'; font-weight: 900; src: url(node_modules/@fontsource/orbitron/files/orbitron-latin-900-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Share Tech Mono'; font-weight: 400; src: url(node_modules/@fontsource/share-tech-mono/files/share-tech-mono-latin-400-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Rajdhani'; font-weight: 500; src: url(node_modules/@fontsource/rajdhani/files/rajdhani-latin-500-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Rajdhani'; font-weight: 600; src: url(node_modules/@fontsource/rajdhani/files/rajdhani-latin-600-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Rajdhani'; font-weight: 700; src: url(node_modules/@fontsource/rajdhani/files/rajdhani-latin-700-normal.woff2) format('woff2'); }
+  html, body { margin: 0; height: 100%; background: #020309; overflow: hidden; }
+  #stage canvas { display: block; }
+  #ui { position: fixed; left: 0; right: 0; bottom: 18%; text-align: center; color: #00f0ff; font: 700 18px Orbitron, sans-serif; letter-spacing: .3em; pointer-events: none; text-shadow: 0 0 12px #00f0ff; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./node_modules/three/build/three.module.js",
+  "three/addons/": "./node_modules/three/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage"></div>
+<div id="ui"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

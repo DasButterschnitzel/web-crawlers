@@ -1,0 +1,13 @@
+{
+  "name": "arachnet-viz3d",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Real-time 3D cyberpunk visualiser for ArachNet crawls (live SSE, replay, deterministic render)",
+  "type": "module",
+  "dependencies": {
+    "three": "0.186.1",
+    "@fontsource/orbitron": "^5.2.0",
+    "@fontsource/share-tech-mono": "^5.2.0",
+    "@fontsource/rajdhani": "^5.2.0"
+  }
+}

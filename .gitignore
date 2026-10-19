@@ -17,3 +17,9 @@ Thumbs.db
 extension/tools/node_modules/
 extension/tools/.e2e-ext/
 extension/tools/out/
+runs/
+viz3d/node_modules/
+video3d/node_modules/
+video3d/build/
+video3d/out/
+report/out/
